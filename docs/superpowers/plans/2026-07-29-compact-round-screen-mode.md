@@ -1748,6 +1748,125 @@ Gated on compact-round detection so phone behaviour is unchanged."
 
 ---
 
+## Task 9: URL scheme / Paylaş menüsü içe aktarmasının profilleri silmesini düzelt
+
+**Bu task da planlanmadı — Task 7 doğrulaması sırasında bulundu.** Veri kaybına yol açıyor ve tam olarak kullanıcının seçtiği içe aktarma yolunu vuruyor.
+
+**Belirti:** `v2rayng://install-config` ile veya Paylaş menüsünden bir profil içe aktarmak, varsayılan gruptaki **mevcut tüm profilleri siliyor**, sonra yenisini ekliyor.
+
+**Zincir:**
+
+```
+ui/UrlSchemeActivity.kt:79   importBatchConfig(decodedUrl, "", false)
+handler/AngConfigManager.kt:179  fun importBatchConfig(server, subid, append: Boolean)
+handler/AngConfigManager.kt:258  if (!append) MmkvManager.removeServerViaSubid(subid)
+handler/MmkvManager.kt:228       serverList.forEach { profileFullStorage.remove(guid) }
+```
+
+**Neden fark edilmemiş:** parametre adı katmanlar arasında değişiyor. `AngConfigManager` ona `append` diyor; `MainRepository.kt:180` ve `MainDataSource.kt:49` aynı pozisyonel argümanı `updateUI` diye adlandırıyor. Uygulama içi pano yolu (`MainViewModel.kt:377`) `updateUI = true` niyetiyle `true` geçiyor ve kazara doğru davranışı (`append = true`) alıyor. İki isim, tek argüman.
+
+**Files:**
+- Modify: `V2rayNG/app/src/main/java/com/v2ray/ang/ui/UrlSchemeActivity.kt`
+- Modify: `V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/MainRepository.kt`
+- Modify: `V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/MainDataSource.kt`
+- Modify: `FORK.md`
+
+- [ ] **Step 1: Yanlış argümanı düzelt**
+
+`ui/UrlSchemeActivity.kt:79`:
+
+```kotlin
+                val (count, countSub) = AngConfigManager.importBatchConfig(decodedUrl, "", false)
+```
+
+yerine:
+
+```kotlin
+                // append = true: importing one profile must not wipe the default group.
+                // Upstream passes false here, which calls removeServerViaSubid("") first.
+                val (count, countSub) = AngConfigManager.importBatchConfig(decodedUrl, "", true)
+```
+
+`ScScannerActivity.kt:30` **aynı hataya sahip** ama bu fork'un kapsamı dışında (QR kısayolu). Dokunma; Step 3'te belgelenecek.
+
+- [ ] **Step 2: Kök nedeni ortadan kaldır — parametre adını düzelt**
+
+Saf yeniden adlandırma, davranış değişikliği yok. `ui/main/MainDataSource.kt`:
+
+```kotlin
+    suspend fun importBatchConfig(
+        server: String?,
+        subscriptionId: String,
+        updateUI: Boolean
+    ): Pair<Int, Int>
+```
+
+yerine:
+
+```kotlin
+    suspend fun importBatchConfig(
+        server: String?,
+        subscriptionId: String,
+        append: Boolean
+    ): Pair<Int, Int>
+```
+
+`ui/main/MainRepository.kt` içindeki `override` da aynı şekilde `updateUI` → `append` olarak adlandırılır ve gövdesi `AngConfigManager.importBatchConfig(server, subscriptionId, append)` olur.
+
+`MainViewModel.kt:377`'deki `true` **değişmez** — zaten doğru davranışı veriyor, sadece artık niyeti doğru okunuyor.
+
+- [ ] **Step 3: `FORK.md`'ye ekle**
+
+`FORK.md`'ye yeni bölüm:
+
+```markdown
+## 3. Deep-link import no longer wipes the default group
+
+`UrlSchemeActivity` passed `append = false` to `AngConfigManager.importBatchConfig`, which
+calls `MmkvManager.removeServerViaSubid("")` and deletes every profile in the default group
+before adding the imported one. Importing a single config via `v2rayng://install-config` or
+the share menu therefore destroyed the user's existing profiles.
+
+The parameter is named `append` in `AngConfigManager` but `updateUI` in `MainDataSource` /
+`MainRepository`, which is how the discrepancy stayed hidden: the in-app clipboard path
+passes `true` meaning "update the UI" and accidentally gets the correct append behaviour.
+This fork passes `true` explicitly and renames the parameter to `append` throughout.
+
+**Still unfixed upstream and here:** `ui/shortcut/ScScannerActivity.kt` has the same
+`append = false` bug on the QR-shortcut path. Out of this fork's scope, but the same
+one-word fix applies if you use that shortcut.
+```
+
+- [ ] **Step 4: Emülatörde doğrula**
+
+```bash
+cd V2rayNG && ./gradlew assemblePlaystoreDebug
+adb -s emulator-5556 install -r app/build/outputs/apk/playstore/debug/v2rayNG_2.2.6_arm64-v8a.apk
+adb -s emulator-5556 shell am force-stop com.v2ray.ang
+```
+
+İki farklı profili sırayla URL scheme ile içe aktar (farklı `#` etiketleriyle), sonra kompakt profil listesini aç. **İkisi de görünmeli.** Düzeltmeden önce yalnızca sonuncusu görünüyordu.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add V2rayNG/app/src/main/java/com/v2ray/ang/ui/UrlSchemeActivity.kt \
+        V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/MainRepository.kt \
+        V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/MainDataSource.kt \
+        FORK.md
+git commit -m "fix: deep-link import no longer wipes the default profile group
+
+UrlSchemeActivity passed append=false, so importing one profile via
+v2rayng://install-config or the share menu called removeServerViaSubid(\"\")
+and deleted every existing profile in the default group first.
+
+Also renames the parameter from updateUI to append in MainDataSource and
+MainRepository, which is what it has always been in AngConfigManager and why
+the discrepancy went unnoticed."
+```
+
+---
+
 ## Task 7: Uçtan uca doğrulama
 
 **Files:** yok — yalnızca doğrulama. Bulunan hatalar kendi commit'leriyle düzeltilir.
