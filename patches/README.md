@@ -4,10 +4,12 @@
 
 Restores the `allowInsecure` TLS option to Xray-core.
 
-**Verified against:** Xray-core `v26.7.28` (commit `5ca6f4b`). `go build ./...` exits 0
-with the patch applied. Also applies to `v26.7.11`, which is what
-AndroidLibXrayLite `v26.7.19` — the version this repo currently pins — builds against;
-the surrounding code is identical in all four touched files.
+**Verified against two versions, both by building, not by inspection:**
+
+| Xray-core | Commit | `git apply --check` | `go build ./...` |
+|---|---|---|---|
+| `v26.7.28` (latest at time of writing) | `5ca6f4b` | clean | exit 0 |
+| `v26.7.11` (what AndroidLibXrayLite `v26.7.19` pins, i.e. what this repo ships today) | `50231ea` | clean | exit 0 |
 
 ### Why this is needed
 
