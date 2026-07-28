@@ -13,6 +13,7 @@ import com.v2ray.ang.AngApplication
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
 import com.v2ray.ang.compose.LocalCompactRound
+import com.v2ray.ang.compose.isCompactRoundScreen
 import com.v2ray.ang.core.CoreServiceManager
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
@@ -335,6 +336,22 @@ class MainActivity : HelperBaseComponentActivity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_BUTTON_B) {
+            // In compact mode the screen stack lives inside a single composable, so its
+            // BackHandler must get the event first — otherwise back from the profile list
+            // or the menu backgrounds the app instead of returning to the compact home.
+            // Deliberately gated on compact mode: on phones the drawer also registers an
+            // enabled callback, and backgrounding is the long-standing behaviour there.
+            val configuration = resources.configuration
+            val compactRound = isCompactRoundScreen(
+                smallestScreenWidthDp = configuration.smallestScreenWidthDp,
+                screenWidthDp = configuration.screenWidthDp,
+                screenHeightDp = configuration.screenHeightDp,
+                isScreenRound = configuration.isScreenRound,
+            )
+            if (compactRound && onBackPressedDispatcher.hasEnabledCallbacks()) {
+                onBackPressedDispatcher.onBackPressed()
+                return true
+            }
             moveTaskToBack(false)
             return true
         }
