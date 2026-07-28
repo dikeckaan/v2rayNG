@@ -1646,6 +1646,108 @@ SHA-256, pins it, clears the insecure flag and restarts if running."
 
 ---
 
+## Task 8: Kompakt modda geri tuşunu düzelt
+
+**Bu task planlanmadı — 240×240 emülatörde görsel doğrulama sırasında bulundu.** Üç kod review'ın da kaçırdığı gerçek bir hata.
+
+**Belirti:** Kompakt menüde veya profil listesindeyken BACK'e basmak ana ekrana dönmüyor, uygulamayı **arka plana atıyor**. `dumpsys` ile doğrulandı: `topResumedActivity` `com.v2ray.ang/.ui.main.MainActivity`'den launcher'a geçiyor.
+
+**Sebep:** `MainActivity.kt:298-304`'teki `onKeyDown`, `KEYCODE_BACK`'i yakalayıp `moveTaskToBack(false)` çağırıyor ve `true` dönüyor. Bu override kompakt moddan önce yazılmış ve `CompactMainScreen`'in `BackHandler`'ını tamamen devre dışı bırakıyor.
+
+Çıkmaz sokak değil — menü girişleri ve profil satırları `onClose()` çağırıyor — ama geri tuşu en doğal hareket ve yanlış şey yapıyor.
+
+**Files:**
+- Modify: `V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/MainActivity.kt`
+
+**Interfaces:**
+- Consumes: `isCompactRoundScreen(...)` (Task 2); `androidx.activity.ComponentActivity.onBackPressedDispatcher`
+- Produces: yok
+
+- [ ] **Step 1: `onKeyDown`'u kompakt moda duyarlı hale getir**
+
+`MainActivity.kt`'deki mevcut hali:
+
+```kotlin
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_BUTTON_B) {
+            moveTaskToBack(false)
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+```
+
+Yeni hali:
+
+```kotlin
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_BUTTON_B) {
+            // In compact mode the screen stack lives inside a single composable, so its
+            // BackHandler must get the event first — otherwise back from the profile list
+            // or the menu backgrounds the app instead of returning to the compact home.
+            // Deliberately gated on compact mode: on phones the drawer also registers an
+            // enabled callback, and backgrounding is the long-standing behaviour there.
+            val configuration = resources.configuration
+            val compactRound = isCompactRoundScreen(
+                smallestScreenWidthDp = configuration.smallestScreenWidthDp,
+                screenWidthDp = configuration.screenWidthDp,
+                screenHeightDp = configuration.screenHeightDp,
+                isScreenRound = configuration.isScreenRound,
+            )
+            if (compactRound && onBackPressedDispatcher.hasEnabledCallbacks()) {
+                onBackPressedDispatcher.onBackPressed()
+                return true
+            }
+            moveTaskToBack(false)
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+```
+
+Eklenecek import:
+
+```kotlin
+import com.v2ray.ang.compose.isCompactRoundScreen
+```
+
+Telefon davranışı bilerek dokunulmamış durumda: `compactRound` false olduğunda kod eskisiyle birebir aynı yolu izliyor.
+
+- [ ] **Step 2: Derle ve emülatörde doğrula**
+
+```bash
+cd V2rayNG && ./gradlew assemblePlaystoreDebug
+adb -s emulator-5556 install -r app/build/outputs/apk/playstore/debug/v2rayNG_2.2.6_arm64-v8a.apk
+adb -s emulator-5556 shell am force-stop com.v2ray.ang
+adb -s emulator-5556 shell am start -n com.v2ray.ang/.ui.main.MainActivity
+sleep 6
+adb -s emulator-5556 shell input tap 120 196          # menüyü aç
+sleep 2
+adb -s emulator-5556 shell input keyevent KEYCODE_BACK
+sleep 2
+adb -s emulator-5556 shell dumpsys activity activities | grep -m1 topResumedActivity
+```
+
+Beklenen: `topResumedActivity` **hâlâ** `com.v2ray.ang/.ui.main.MainActivity` olmalı, ve ekran görüntüsü kompakt ana ekranı göstermeli.
+
+İkinci kez BACK'e basıldığında (artık ana ekranda) uygulama arka plana düşmeli — eski davranış.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/MainActivity.kt
+git commit -m "fix: let the compact screens handle back before backgrounding
+
+MainActivity.onKeyDown intercepted KEYCODE_BACK and called moveTaskToBack,
+which predates compact mode and defeated CompactMainScreen's BackHandler:
+back from the profile list or the menu sent the app to the background
+instead of returning to the compact home.
+
+Gated on compact-round detection so phone behaviour is unchanged."
+```
+
+---
+
 ## Task 7: Cihazda uçtan uca doğrulama
 
 **Files:** yok — yalnızca doğrulama. Bulunan hatalar kendi commit'leriyle düzeltilir.
