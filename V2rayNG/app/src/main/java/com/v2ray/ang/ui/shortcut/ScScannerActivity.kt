@@ -27,7 +27,9 @@ class ScScannerActivity : HelperBaseComponentActivity() {
     private fun importQRcode() {
         launchQRCodeScanner { scanResult ->
             if (scanResult != null) {
-                val (count, countSub) = AngConfigManager.importBatchConfig(scanResult, "", false)
+                // append = true: importing one profile must not wipe the default group.
+                // Upstream passes false here, which calls removeServerViaSubid("") first.
+                val (count, countSub) = AngConfigManager.importBatchConfig(scanResult, "", true)
 
                 if (count + countSub > 0) {
                     toastSuccess(R.string.toast_success)
