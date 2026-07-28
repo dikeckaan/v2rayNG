@@ -38,11 +38,11 @@ return nil // r.PinnedPeerCertSha256==nil && r.verifyPeerCertByName==nil
 
 So when neither a pinned certificate nor a name check is configured, the callback accepts
 any certificate. Only the field feeding `tls.Config.InsecureSkipVerify` was cut. Restoring
-that field and wiring it back is enough — four files, 24 added lines:
+that field and wiring it back is enough — four files, 22 added lines:
 
 | File | Change |
 |---|---|
-| `transport/internet/tls/config.proto` | re-add `bool allow_insecure = 1;` (field 1 was left reserved by upstream) |
+| `transport/internet/tls/config.proto` | re-add `bool allow_insecure = 1;` in place of upstream's `// Number 1 was assigned and used by an legacy option.` comment |
 | `transport/internet/tls/config.pb.go` | regenerated from the above |
 | `transport/internet/tls/config.go` | `InsecureSkipVerify: c.AllowInsecure` in the `tls.Config` literal |
 | `infra/conf/transport_security.go` | hard error replaced by a warning + `config.AllowInsecure = true` |
@@ -96,6 +96,19 @@ This patch has to be re-applied on every Xray-core bump. All four touched sites 
 and stable, but `infra/conf/transport_security.go` is the one upstream is most likely to
 churn. After each bump, verify a profile with `allowInsecure` still connects — a silent
 regression here looks identical to a server-side problem.
+
+**Watch proto field number 1.** Upstream did *not* write `reserved 1;` when it removed
+`allow_insecure` — it left only the comment `// Number 1 was assigned and used by an legacy
+option.` A comment does not stop `protoc` from handing field 1 to something new, so a future
+upstream release could legitimately reassign it. This patch would then still apply (the
+comment line it replaces is what changes, so more likely it would conflict), but the real
+hazard is silent wire incompatibility: a peer would read our `allow_insecure` bool as
+whatever upstream put at field 1. On every bump, check that
+`transport/internet/tls/config.proto` still has nothing at field 1 before applying.
+
+Keep the patch free of generator-stamp churn. It deliberately does **not** touch the
+`// protoc vX.Y.Z` header of `config.pb.go`: rewriting that stamp adds a hunk at line 1 of
+the file that conflicts with any upstream regeneration, for no functional gain.
 
 Preferring `pinnedPeerCertSha256` remains the better answer where it is practical; the app
 has a one-tap fetch for it (`ui/server/BaseServerActivity.kt`, and the compact menu entry
