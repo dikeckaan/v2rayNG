@@ -70,10 +70,16 @@ fun CompactMainScreen(
             onOpenMenu = { route = CompactRoute.Menu },
         )
 
-        // Wired up in Task 4 and Task 5. Until then these render nothing and the
-        // BackHandler above returns to Home. Do NOT assign to `route` here: writing
-        // state during composition is what causes recomposition loops.
-        CompactRoute.Profiles, CompactRoute.Menu -> Unit
+        // Wired up in Task 5. Until then this renders nothing and the BackHandler
+        // above returns to Home. Do NOT assign to `route` here: writing state
+        // during composition is what causes recomposition loops.
+        CompactRoute.Menu -> Unit
+
+        CompactRoute.Profiles -> CompactProfileList(
+            mainViewModel = mainViewModel,
+            onAction = onAction,
+            onClose = { route = CompactRoute.Home },
+        )
     }
 }
 
