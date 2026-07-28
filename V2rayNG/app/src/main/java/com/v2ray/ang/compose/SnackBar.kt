@@ -164,13 +164,26 @@ private const val ToastMaxLines = 8
 private const val ToastMaxWidthFraction = 0.75f
 private val ToastBottomOffset = 100.dp
 
+// Compact round screens. The phone values leave only a ~140dp-tall, ~180dp-wide band
+// on a 240dp screen, and the messages this fork most needs readable — the core's
+// allowInsecure rejection is 118 characters — overflow it, with the top corners
+// physically outside the circular panel. Applied only when LocalCompactRound is true,
+// so phone behaviour is untouched.
+private const val CompactToastMaxLines = 10
+private const val CompactToastMaxWidthFraction = 0.9f
+private val CompactToastBottomOffset = 24.dp
+
 @Composable
 fun AppSnackbarHost(
     hostState: SnackbarHostState,
     modifier: Modifier = Modifier
 ) {
     BoxWithConstraints(modifier = modifier) {
-        val maxSnackbarWidth = maxWidth * ToastMaxWidthFraction
+        val compact = LocalCompactRound.current
+        val maxSnackbarWidth = maxWidth *
+            if (compact) CompactToastMaxWidthFraction else ToastMaxWidthFraction
+        val bottomOffset = if (compact) CompactToastBottomOffset else ToastBottomOffset
+        val maxLines = if (compact) CompactToastMaxLines else ToastMaxLines
         val density = LocalDensity.current
         val navigationBarHeight = with(density) {
             WindowInsets.navigationBars.getBottom(this).toDp()
@@ -195,7 +208,7 @@ fun AppSnackbarHost(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = ToastBottomOffset + navigationBarHeight),
+                    .padding(bottom = bottomOffset + navigationBarHeight),
                 contentAlignment = Alignment.BottomCenter
             ) {
                 Surface(
@@ -218,7 +231,7 @@ fun AppSnackbarHost(
                             text = data.visuals.message,
                             color = toastTextColor,
                             fontSize = 14.sp,
-                            maxLines = ToastMaxLines,
+                            maxLines = maxLines,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.wrapContentWidth()
                         )

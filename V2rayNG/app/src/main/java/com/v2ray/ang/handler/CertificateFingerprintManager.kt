@@ -22,10 +22,18 @@ object CertificateFingerprintManager {
             fetch("tls", request) { Libv2ray.fetchTlsCertSha256(it) }
         }
 
-        return result
-            ?.takeIf { it.error.isBlank() }
-            ?.sha256
-            ?.takeIf { it.isNotBlank() }
+        if (result == null) return null
+        if (result.error.isNotBlank()) {
+            LogUtil.e(AppConfig.TAG, "Fetch cert SHA-256 rejected by core: ${result.error}")
+            return null
+        }
+
+        val sha256 = result.sha256
+        if (sha256.isNullOrBlank()) {
+            LogUtil.i(AppConfig.TAG, "Fetch cert SHA-256 returned no fingerprint")
+            return null
+        }
+        return sha256
     }
 
     private fun buildRequest(profile: ProfileItem): CertSha256Request? {
