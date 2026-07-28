@@ -148,9 +148,11 @@ val LocalDarkTheme = compositionLocalOf { false }
 @Composable
 fun AppTheme(
     darkTheme: Boolean = resolveDarkTheme(),
+    applyCompactSafeArea: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColor else LightColor
+    val compactRound = currentIsCompactRound()
     val snackbarController = rememberAppSnackbarController()
 
     val view = LocalView.current
@@ -167,14 +169,21 @@ fun AppTheme(
 
     CompositionLocalProvider(
         LocalDarkTheme provides darkTheme,
-        LocalAppSnackbar provides snackbarController
+        LocalAppSnackbar provides snackbarController,
+        LocalCompactRound provides compactRound,
     ) {
         MaterialTheme(
             colorScheme = colorScheme
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 AppSnackbarBridge(controller = snackbarController)
-                content()
+                if (compactRound && applyCompactSafeArea) {
+                    Box(modifier = Modifier.fillMaxSize().circularStrictSafeArea()) {
+                        content()
+                    }
+                } else {
+                    content()
+                }
                 AppSnackbarHost(hostState = snackbarController.hostState)
             }
         }

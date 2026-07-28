@@ -12,6 +12,12 @@ import com.v2ray.ang.util.MyContextWrapper
 
 abstract class BaseComponentActivity : ComponentActivity() {
 
+    /**
+     * Set to true by activities whose compact-mode content applies its own circular
+     * safe area. Prevents double insetting. Has no effect on non-compact screens.
+     */
+    protected open val managesOwnCompactSafeArea: Boolean = false
+
     override fun attachBaseContext(newBase: Context?) {
         super.attachBaseContext(MyContextWrapper.wrap(newBase ?: return, SettingsManager.getLocale()))
     }
@@ -20,7 +26,7 @@ abstract class BaseComponentActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            AppTheme {
+            AppTheme(applyCompactSafeArea = !managesOwnCompactSafeArea) {
                 ScreenContent()
             }
         }
