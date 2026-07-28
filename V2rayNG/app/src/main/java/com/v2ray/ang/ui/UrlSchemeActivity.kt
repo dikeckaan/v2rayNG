@@ -76,7 +76,9 @@ class UrlSchemeActivity : BaseComponentActivity() {
             }
             LogUtil.i(AppConfig.TAG, decodedUrl)
             lifecycleScope.launch(Dispatchers.IO) {
-                val (count, countSub) = AngConfigManager.importBatchConfig(decodedUrl, "", false)
+                // append = true: importing one profile must not wipe the default group.
+                // Upstream passes false here, which calls removeServerViaSubid("") first.
+                val (count, countSub) = AngConfigManager.importBatchConfig(decodedUrl, "", true)
                 withContext(Dispatchers.Main) {
                     if (count + countSub > 0) {
                         toast(R.string.import_subscription_success)

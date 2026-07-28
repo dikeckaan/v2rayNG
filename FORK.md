@@ -72,3 +72,19 @@ manually. Phone behaviour is unchanged.
 - `ui/main/compact/` — the compact screens (new)
 
 See `docs/superpowers/specs/2026-07-29-compact-round-screen-mode-design.md`.
+
+## 3. Deep-link import no longer wipes the default group
+
+`UrlSchemeActivity` passed `append = false` to `AngConfigManager.importBatchConfig`, which
+calls `MmkvManager.removeServerViaSubid("")` and deletes every profile in the default group
+before adding the imported one. Importing a single config via `v2rayng://install-config` or
+the share menu therefore destroyed the user's existing profiles.
+
+The parameter is named `append` in `AngConfigManager` but `updateUI` in `MainDataSource` /
+`MainRepository`, which is how the discrepancy stayed hidden: the in-app clipboard path
+passes `true` meaning "update the UI" and accidentally gets the correct append behaviour.
+This fork passes `true` explicitly and renames the parameter to `append` throughout.
+
+**Still unfixed upstream and here:** `ui/shortcut/ScScannerActivity.kt` has the same
+`append = false` bug on the QR-shortcut path. Out of this fork's scope, but the same
+one-word fix applies if you use that shortcut.

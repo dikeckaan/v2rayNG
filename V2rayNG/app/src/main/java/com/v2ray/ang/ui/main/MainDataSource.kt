@@ -46,7 +46,7 @@ interface MainDataSource : Closeable {
     suspend fun importBatchConfig(
         server: String?,
         subscriptionId: String,
-        updateUI: Boolean
+        append: Boolean
     ): Pair<Int, Int>
 
     fun updateConfigViaSubAll(): SubscriptionUpdateResult
