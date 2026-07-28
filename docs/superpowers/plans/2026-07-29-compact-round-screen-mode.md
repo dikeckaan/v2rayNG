@@ -845,9 +845,10 @@ fun CompactMainScreen(
             onOpenMenu = { route = CompactRoute.Menu },
         )
 
-        // Replaced by the real screens in later tasks.
-        CompactRoute.Profiles -> route = CompactRoute.Home
-        CompactRoute.Menu -> route = CompactRoute.Home
+        // Wired up in Task 4 and Task 5. Until then these render nothing and the
+        // BackHandler above returns to Home. Do NOT assign to `route` here: writing
+        // state during composition is what causes recomposition loops.
+        CompactRoute.Profiles, CompactRoute.Menu -> Unit
     }
 }
 
@@ -1245,15 +1246,17 @@ private fun ProfileRow(
 
 - [ ] **Step 2: `CompactMainScreen`'de rotayı bağla**
 
-`CompactMainScreen.kt` içindeki yer tutucu satır değiştirilir:
+`CompactMainScreen.kt` içindeki yer tutucu dal bölünür. Mevcut hali:
 
 ```kotlin
-        CompactRoute.Profiles -> route = CompactRoute.Home
+        CompactRoute.Profiles, CompactRoute.Menu -> Unit
 ```
 
-yerine:
+`Profiles` kendi dalına ayrılır (`Menu` Task 5'e kadar `Unit` kalır):
 
 ```kotlin
+        CompactRoute.Menu -> Unit
+
         CompactRoute.Profiles -> CompactProfileList(
             mainViewModel = mainViewModel,
             onAction = onAction,
@@ -1443,7 +1446,7 @@ private fun MenuRow(
 - [ ] **Step 2: `CompactMainScreen`'de rotayı bağla**
 
 ```kotlin
-        CompactRoute.Menu -> route = CompactRoute.Home
+        CompactRoute.Menu -> Unit
 ```
 
 yerine:
