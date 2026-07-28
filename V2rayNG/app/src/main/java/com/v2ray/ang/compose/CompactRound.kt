@@ -8,7 +8,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Constraints
 import kotlin.math.abs
-import kotlin.math.roundToInt
+import kotlin.math.ceil
 import kotlin.math.sqrt
 
 /**
@@ -27,8 +27,9 @@ const val COMPACT_ROUND_MAX_ASPECT_DELTA_DP = 8
 
 /**
  * Inset fraction that yields the largest square fitting inside a circle:
- * (1 - 1/sqrt(2)) / 2 ~= 0.14645. On a 240dp screen that is ~35dp per side,
- * leaving a 170dp square.
+ * (1 - 1/sqrt(2)) / 2 ~= 0.14645. On a 240dp screen the exact inset is 35.15dp,
+ * which is rounded up (see [circularStrictSafeArea]) to 36dp per side, leaving a
+ * 168dp square whose corners are genuinely inside the circle.
  */
 private val STRICT_INSET_FRACTION: Float = (1f - 1f / sqrt(2f)) / 2f
 
@@ -91,7 +92,10 @@ fun Modifier.circularStrictSafeArea(): Modifier = layout { measurable, constrain
 
     val width = constraints.maxWidth
     val height = constraints.maxHeight
-    val inset = (minOf(width, height) * STRICT_INSET_FRACTION).roundToInt()
+    // ceil, not round: at 240dp the exact inset is 35.147, and rounding it down to 35
+    // puts the square's corners sqrt(85^2 + 85^2) = 120.21dp from the centre, just
+    // outside the 120dp radius. Rounding up keeps the square genuinely inscribed.
+    val inset = ceil(minOf(width, height) * STRICT_INSET_FRACTION).toInt()
     val innerWidth = (width - 2 * inset).coerceAtLeast(0)
     val innerHeight = (height - 2 * inset).coerceAtLeast(0)
 

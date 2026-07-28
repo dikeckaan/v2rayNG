@@ -115,12 +115,19 @@ class CompactRoundTest {
     }
 
     /**
-     * Sanity check tying the two safe-area strategies together: the strict inscribed
-     * square (35dp inset on a 240dp screen) must match the chord at the square's edge.
+     * Ties the two safe-area strategies together: the strict inscribed square must
+     * actually fit inside the circle. On a 240dp screen the exact inset is 35.15dp;
+     * rounding it down to 35 gives an 85dp half-side against an 84.7dp chord, i.e.
+     * corners outside the panel. circularStrictSafeArea rounds up for that reason.
      */
     @Test
-    fun test_strictInsetAgreesWithChordAtSquareEdge() {
-        val halfSquare = chordHalfWidth(120f, 85f)
-        assertEquals(84.7f, halfSquare, 0.5f)
+    fun test_strictInsetSquareCornerIsInsideCircle() {
+        // Rounded up: 36dp inset -> 84dp half-side, chord at 84dp is ~85.7dp. Fits.
+        assertEquals(85.70f, chordHalfWidth(120f, 84f), 0.01f)
+        assertTrue(84f <= chordHalfWidth(120f, 84f))
+
+        // Rounded down: 35dp inset -> 85dp half-side, chord at 85dp is ~84.71dp. Does not.
+        assertEquals(84.71f, chordHalfWidth(120f, 85f), 0.01f)
+        assertFalse(85f <= chordHalfWidth(120f, 85f))
     }
 }

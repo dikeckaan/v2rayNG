@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
@@ -101,10 +102,21 @@ private fun CompactHome(
             .circularStrictSafeArea(),
         contentAlignment = Alignment.Center,
     ) {
+        // Height budget. circularStrictSafeArea leaves 240 - 2*36 = 168dp for this
+        // Column, and a Column measures children in order against what is left, so
+        // anything over budget is silently taken out of the LAST child. Worst case
+        // (profile name wrapping to two lines) must stay at or under 168dp:
+        //
+        //   status 16 + connect 76 + profile 36 (2 lines) + menu icon 28
+        //   + 3 gaps * 4 = 12                                      => 168dp
+        //
+        // That is an exact fit, with no slack. Changing any size below without redoing
+        // this sum will squash the menu icon. (The icon uses requiredSize so that if a
+        // large fontScale blows the budget anyway it overflows rather than vanishing.)
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
                 text = statusText,
@@ -129,7 +141,7 @@ private fun CompactHome(
                 } else {
                     MaterialTheme.colorScheme.onSurface
                 },
-                modifier = Modifier.size(96.dp),
+                modifier = Modifier.size(76.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
@@ -160,8 +172,12 @@ private fun CompactHome(
                 painter = painterResource(R.drawable.ic_menu_24dp),
                 contentDescription = stringResource(R.string.title_settings),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                // requiredSize, not size: incoming constraints must not be able to
+                // shrink the touch target. If a large fontScale still pushes the
+                // column past its budget the icon overflows visibly instead of
+                // being measured down to a few dp and disappearing.
                 modifier = Modifier
-                    .size(28.dp)
+                    .requiredSize(28.dp)
                     .clickable(onClick = onOpenMenu),
             )
         }

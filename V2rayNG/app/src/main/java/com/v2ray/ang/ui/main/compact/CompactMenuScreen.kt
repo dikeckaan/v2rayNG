@@ -5,7 +5,6 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -104,8 +103,8 @@ private fun MenuRow(
     Row(
         modifier = Modifier
             .width(width)
-            .height(44.dp)
-            .clip(RoundedCornerShape(22.dp))
+            .height(52.dp)
+            .clip(RoundedCornerShape(26.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .clickable(onClick = entry.onSelect)
             .padding(horizontal = 12.dp),
@@ -122,7 +121,10 @@ private fun MenuRow(
             text = stringResource(entry.label),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
+            // The label gets ~102dp (154 row - 24 padding - 20 icon - 8 gap), about
+            // 16 characters at bodySmall. One line truncates every longer entry past
+            // the point of meaning, and the strings cannot be shortened.
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
     }
