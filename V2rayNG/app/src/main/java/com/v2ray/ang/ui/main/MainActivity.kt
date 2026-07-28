@@ -21,6 +21,7 @@ import com.v2ray.ang.extension.toast
 import com.v2ray.ang.extension.toastError
 import com.v2ray.ang.extension.toastSuccess
 import com.v2ray.ang.handler.AngConfigManager
+import com.v2ray.ang.handler.CertificateFingerprintManager
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsChangeManager
 import com.v2ray.ang.handler.SettingsManager
@@ -118,6 +119,42 @@ class MainActivity : HelperBaseComponentActivity() {
         }
     }
 
+    /**
+     * Fetches the selected profile's certificate SHA-256 and pins it.
+     *
+     * Xray-core removed `allowInsecure`; `pinnedPeerCertSha256` is the official
+     * replacement and the app already carries it end to end. This turns a profile that
+     * relied on skipping verification into one that verifies against a pinned cert,
+     * without making the user open the full editor on a 240dp screen.
+     */
+    private fun pinCertificateForSelectedProfile() {
+        val guid = mainViewModel.uiState.value.selectedGuid
+        if (guid.isNullOrEmpty()) {
+            toast(R.string.title_file_chooser)
+            return
+        }
+        val profile = MmkvManager.decodeServerConfig(guid)
+        if (profile == null) {
+            toastError(R.string.toast_config_file_invalid)
+            return
+        }
+        lifecycleScope.launch {
+            val sha256 = withContext(Dispatchers.IO) {
+                CertificateFingerprintManager.fetchForManualFill(profile)
+            }
+            if (sha256.isNullOrBlank()) {
+                toastError(R.string.toast_fetch_cert_sha256_failed)
+                return@launch
+            }
+            profile.pinnedCA256 = sha256
+            profile.insecure = false
+            MmkvManager.encodeServerConfig(guid, profile)
+            toastSuccess(R.string.toast_fetch_cert_sha256_success)
+            mainViewModel.onAction(MainAction.RefreshGroups)
+            if (mainViewModel.uiState.value.isRunning) restartV2Ray()
+        }
+    }
+
     @Composable
     override fun ScreenContent() {
         if (LocalCompactRound.current) {
@@ -125,6 +162,7 @@ class MainActivity : HelperBaseComponentActivity() {
                 mainViewModel = mainViewModel,
                 onAction = ::handleAction,
                 onNavigate = ::navigateTo,
+                onPinCertificate = ::pinCertificateForSelectedProfile,
             )
         } else {
             MainScreen(

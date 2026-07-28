@@ -52,6 +52,7 @@ private data class CompactMenuEntry(
 fun CompactMenuScreen(
     onAction: (MainAction) -> Unit,
     onNavigate: (String) -> Unit,
+    onPinCertificate: () -> Unit,
     onClose: () -> Unit,
 ) {
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
@@ -63,6 +64,10 @@ fun CompactMenuScreen(
     val entries = listOf(
         CompactMenuEntry(R.drawable.ic_copy, R.string.menu_item_import_config_clipboard) {
             onAction(MainAction.ImportClipboard)
+            onClose()
+        },
+        CompactMenuEntry(R.drawable.ic_lock_24dp, R.string.pinned_ca256_action_fetch) {
+            onPinCertificate()
             onClose()
         },
         CompactMenuEntry(R.drawable.ic_cloud_download_24dp, R.string.title_sub_update) {

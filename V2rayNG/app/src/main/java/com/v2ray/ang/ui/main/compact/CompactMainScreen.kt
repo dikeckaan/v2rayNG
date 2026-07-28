@@ -49,6 +49,7 @@ fun CompactMainScreen(
     mainViewModel: MainViewModel,
     onAction: (MainAction) -> Unit,
     onNavigate: (String) -> Unit,
+    onPinCertificate: () -> Unit,
 ) {
     val uiState by mainViewModel.uiState.collectAsStateWithLifecycle()
     var route by rememberSaveable { mutableStateOf(CompactRoute.Home) }
@@ -73,6 +74,7 @@ fun CompactMainScreen(
         CompactRoute.Menu -> CompactMenuScreen(
             onAction = onAction,
             onNavigate = onNavigate,
+            onPinCertificate = onPinCertificate,
             onClose = { route = CompactRoute.Home },
         )
 
