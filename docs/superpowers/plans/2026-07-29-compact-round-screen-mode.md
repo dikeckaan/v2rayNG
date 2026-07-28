@@ -1748,12 +1748,30 @@ Gated on compact-round detection so phone behaviour is unchanged."
 
 ---
 
-## Task 7: Cihazda uçtan uca doğrulama
+## Task 7: Uçtan uca doğrulama
 
 **Files:** yok — yalnızca doğrulama. Bulunan hatalar kendi commit'leriyle düzeltilir.
 
 **Interfaces:**
-- Consumes: Task 1-5'in tamamı
+- Consumes: Task 1-6 ve Task 8'in tamamı
+
+### Doğrulama ortamı
+
+Gerçek cihaz (`192.168.0.1:5555`) uykuya geçince adbd'yi kapatıyor: host ping'e cevap veriyor ama 5555 reddediyor, yani uzaktan uyandırılamıyor. Android `adb tcpip 5555`'i yeniden başlatmada unutur; geri getirmek USB kablo ister.
+
+Bu yüzden doğrulamanın omurgası **`round240` AVD'si**: 240×240 @ 160dpi, config'i `sw240dp-w240dp-h240dp-small-notlong-notround` — gerçek MU5358'in niteleyicileriyle **birebir aynı**, `notround` dahil. Başlatma:
+
+```bash
+export ANDROID_SDK_ROOT=~/Library/Android/sdk
+~/Library/Android/sdk/emulator/emulator -avd round240 -no-window -no-audio \
+  -no-boot-anim -no-snapshot -gpu swiftshader_indirect -port 5556 &
+# ~30s içinde açılır
+adb -s emulator-5556 shell getprop sys.boot_completed
+```
+
+Emülatörün kapsamadığı tek şey fiziksel dairesel kırpılma: panel kare olarak render ediliyor, yani dairenin dışına taşan içerik emülatörde **görünür** ama gerçek cihazda görünmez. Bu yüzden köşelere yakın her şey ölçüyle kontrol edilmeli, gözle değil — 240dp ekranda merkeze uzaklığı 120dp'yi geçen piksel fiziksel olarak yoktur.
+
+Cihaz tekrar erişilebilir olursa aynı adımlar `-s 192.168.0.1:5555` ile tekrarlanır; aşağıdaki `$D` yerine emülatör kullanılabilir.
 
 - [ ] **Step 1: Temiz derleme ve kurulum**
 
