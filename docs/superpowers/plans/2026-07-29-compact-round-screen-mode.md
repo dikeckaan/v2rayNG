@@ -164,7 +164,7 @@ class AllowInsecureFmtTest {
 
 - [ ] **Step 2: Testi çalıştır, geçtiğini doğrula**
 
-Run: `cd V2rayNG && ./gradlew test --tests "com.v2ray.ang.fmt.AllowInsecureFmtTest"`
+Run: `cd V2rayNG && ./gradlew testPlaystoreDebugUnitTest --tests "com.v2ray.ang.fmt.AllowInsecureFmtTest"`
 Expected: **PASS** — mevcut kod bu davranışı zaten sağlıyor. Bu bir karakterizasyon testidir; amacı bugünkü bir hatayı yakalamak değil, gelecekteki bir regresyonu yakalamaktır. Eğer FAIL ederse `FmtBase.kt:76-81` ve `FmtBase.kt:119-124` incelenmeli — davranış beklenenden sapmış demektir.
 
 - [ ] **Step 3: `CoreOutboundBuilder` için testi yaz**
@@ -263,7 +263,7 @@ class AllowInsecureOutboundTest {
 
 - [ ] **Step 4: Testi çalıştır**
 
-Run: `cd V2rayNG && ./gradlew test --tests "com.v2ray.ang.core.AllowInsecureOutboundTest"`
+Run: `cd V2rayNG && ./gradlew testPlaystoreDebugUnitTest --tests "com.v2ray.ang.core.AllowInsecureOutboundTest"`
 Expected: **PASS**. FAIL ederse `CoreOutboundBuilder.kt:541` (`allowInsecure` hesabı) ve `:555` (`TlsSettingsBean`'e aktarım) incelenmeli.
 
 - [ ] **Step 5: Deprecation toast'ını kaldır**
@@ -541,7 +541,7 @@ class CompactRoundTest {
 
 - [ ] **Step 2: Testi çalıştır, başarısız olduğunu doğrula**
 
-Run: `cd V2rayNG && ./gradlew test --tests "com.v2ray.ang.compose.CompactRoundTest"`
+Run: `cd V2rayNG && ./gradlew testPlaystoreDebugUnitTest --tests "com.v2ray.ang.compose.CompactRoundTest"`
 Expected: **FAIL** — derleme hatası, `isCompactRoundScreen` ve `chordHalfWidth` tanımlı değil.
 
 - [ ] **Step 3: `CompactRound.kt`'yi yaz**
@@ -661,7 +661,7 @@ fun Modifier.circularStrictSafeArea(): Modifier = layout { measurable, constrain
 
 - [ ] **Step 4: Testi çalıştır, geçtiğini doğrula**
 
-Run: `cd V2rayNG && ./gradlew test --tests "com.v2ray.ang.compose.CompactRoundTest"`
+Run: `cd V2rayNG && ./gradlew testPlaystoreDebugUnitTest --tests "com.v2ray.ang.compose.CompactRoundTest"`
 Expected: **PASS** (12 test).
 
 - [ ] **Step 5: `AppTheme`'i bağla**
