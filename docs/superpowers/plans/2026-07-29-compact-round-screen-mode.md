@@ -196,7 +196,12 @@ class AllowInsecureOutboundTest {
     private fun tlsProfile(block: ProfileItem.() -> Unit = {}) =
         ProfileItem.create(EConfigType.VLESS).apply {
             security = AppConfig.TLS
-            sni = "example.com"   // non-empty: avoids the Utils.isDomainName branch
+            // Non-empty sni: skips the Utils.isDomainName branch.
+            sni = "example.com"
+            // Non-empty finalMask: skips updateOutboundFragment() (CoreOutboundBuilder.kt:575),
+            // whose first statement reads MMKV settings and would need an initialised Android
+            // runtime. Packet fragmentation is unrelated to what these tests assert.
+            finalMask = "fragment"
             block()
         }
 
@@ -318,11 +323,36 @@ core/CoreOutboundBuilder.kt       populateTlsSettings -> tlsSettings.allowInsecu
 dto/entities/SubscriptionItem.kt  .allowInsecureUrl  (subscription fetch)
 ```
 
-**External risk:** the component that could actually drop `allowInsecure` is Xray-core
-itself, not this app. The core ships as a prebuilt AAR in `V2rayNG/app/libs/`, built
-from the `AndroidLibXrayLite` submodule — so this repo controls which version is used.
-The mitigation is pinning the submodule commit, not app-side code. Before bumping the
-core, verify that a profile with `allowInsecure` still connects.
+**External risk — already realised, not hypothetical.** The component that actually
+dropped `allowInsecure` is Xray-core, not this app. Commit `2c92339f9` (2026-01-31)
+removed it from the TLS `.proto`, from the generated `config.pb.go`, and from the
+runtime. `infra/conf/transport_security.go` now does:
+
+```go
+if c.AllowInsecure {
+    return nil, errors.PrintRemovedFeatureError(`"allowInsecure"`, `"pinnedPeerCertSha256"(pcs) and "verifyPeerCertByName"(vcn)`)
+}
+```
+
+That is a hard error: the core refuses to start. There is **no date gate in the core** —
+the "August 2026" date in upstream's toast was v2rayNG's own client-side messaging.
+
+This repo pins AndroidLibXrayLite `v26.7.19` -> Xray-core `v26.7.11`, stock, with no
+`replace` directive. So on this codebase, enabling allowInsecure currently breaks the
+profile outright.
+
+Making the feature genuinely work again therefore requires patching the core: a fork of
+Xray-core restoring the removed field, consumed through a fork of AndroidLibXrayLite via
+a go.mod `replace`, built by that fork's GitHub Actions. That work lives in other
+repositories and is tracked by its own plan.
+
+The tests below still earn their keep under any outcome: they guard the app-side half of
+the chain, which every option depends on.
+
+The app already supports the official replacements — `pinnedPeerCertSha256` (`pcs`) and
+`verifyPeerCertByName` (`vcn`) — and `ui/server/BaseServerActivity.kt:311` has a one-tap
+button that fetches the server's certificate fingerprint via
+`CertificateFingerprintManager.fetchForManualFill`.
 
 ## 2. Compact round-screen mode
 
