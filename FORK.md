@@ -73,18 +73,55 @@ manually. Phone behaviour is unchanged.
 
 See `docs/superpowers/specs/2026-07-29-compact-round-screen-mode-design.md`.
 
-## 3. Deep-link import no longer wipes the default group
+### Known limitations on the round screen
 
-`UrlSchemeActivity` passed `append = false` to `AngConfigManager.importBatchConfig`, which
-calls `MmkvManager.removeServerViaSubid("")` and deletes every profile in the default group
-before adding the imported one. Importing a single config via `v2rayng://install-config` or
-the share menu therefore destroyed the user's existing profiles.
+These are real and unfixed. They are written down here so nobody has to rediscover them.
 
-The parameter is named `append` in `AngConfigManager` but `updateUI` in `MainDataSource` /
-`MainRepository`, which is how the discrepancy stayed hidden: the in-app clipboard path
-passes `true` meaning "update the UI" and accidentally gets the correct append behaviour.
-This fork passes `true` explicitly and renames the parameter to `append` throughout.
+- **Compose `Dialog`s bypass the circular safe area.** The safe area is a layout modifier
+  applied inside the activity window, but `androidx.compose.ui.window.Dialog` composes into
+  a *separate* window that the modifier never sees. `InputDialog` and `SelectListDialog`
+  (`compose/Dialog.kt`, reached from Settings) therefore render full-bleed at 240dp, with
+  their corners and their right-aligned confirm/cancel buttons outside the visible circle.
+  Fixing it means giving those two composables a compact-gated inset of their own.
+- **Rows clip mid-scroll.** Chord width is computed once, for the band a row occupies when
+  it is at rest. A row scrolling *past* that band is still drawn at the width it was given,
+  so its rounded ends are clipped by the panel while it is in transit. Transient and
+  self-correcting once scrolling stops; it is the price of not doing a dynamic per-row
+  layout pass.
+- **The compact UI is append-only.** It can import, select, connect and pin a certificate.
+  It exposes no path to delete or edit a profile — for that, use the phone UI on a normal
+  screen, or clear data.
+- **The compact home departs from the design spec in two places, both because of its
+  height budget.** The spec assigns the home screen the `chord` safe-area mode; it uses
+  `strict` instead, because `chord` sizing does not bound total column height. And the
+  connect button is 76dp, not the spec's 110dp: the worst case column (status text,
+  button, a two-line profile name, menu icon, three gaps) has to fit the 168dp square that
+  `circularStrictSafeArea` leaves, and at 110dp it does not. See the arithmetic comment in
+  `ui/main/compact/CompactMainScreen.kt`.
 
-**Still unfixed upstream and here:** `ui/shortcut/ScScannerActivity.kt` has the same
-`append = false` bug on the QR-shortcut path. Out of this fork's scope, but the same
-one-word fix applies if you use that shortcut.
+## 3. Import paths no longer wipe the default group
+
+`AngConfigManager.importBatchConfig(server, subid, append)` calls
+`MmkvManager.removeServerViaSubid(subid)` when `append` is false. With `subid = ""` that
+deletes **every profile in the default group** before adding the imported one.
+
+Two callers passed `false`, and both are fixed here:
+
+- `ui/UrlSchemeActivity.kt` — `v2rayng://install-config`, `v2rayng://install-sub` and the
+  system share menu.
+- `ui/shortcut/ScScannerActivity.kt` — the QR-scan launcher shortcut.
+
+Both now pass `true`, with a comment saying why.
+
+The in-app import paths were never affected. `ImportClipboard`, `ImportQRcode` and
+`ImportConfigLocal` (`ui/main/MainActivity.kt`) all funnel into
+`MainViewModel.importBatchConfig`, which already passed `true`.
+
+**On the parameter rename.** Upstream names the same parameter `append` in
+`AngConfigManager` but `updateUI` in `MainDataSource` / `MainRepository`. That is a trap — the name
+`updateUI` invites a caller to pass `false` for "do not refresh the list" and silently get
+a destructive wipe instead — so this fork renames it to `append` throughout. But the rename
+is hygiene, not the root cause of the bug above: `UrlSchemeActivity` and `ScScannerActivity`
+call `AngConfigManager.importBatchConfig` **directly** and never touch `MainDataSource` or
+`MainRepository`. If you are rebasing, look at the direct `AngConfigManager` callers, not at
+the repository layer.
