@@ -1510,7 +1510,143 @@ settings and logcat; everything else stays reachable through settings."
 
 ---
 
-## Task 6: Cihazda uçtan uca doğrulama
+## Task 6: Sertifika sabitleme (pcs) akışını kompakt modda erişilebilir kıl
+
+Xray-core `allowInsecure`'ü kaldırdığı için resmî ikame `pinnedPeerCertSha256`. Uygulama bunu zaten destekliyor ama yalnızca sunucu düzenleme formunda — 240dp ekranda ulaşması zahmetli. Bu task, seçili profil için tek dokunuşla sertifika parmak izi çekip sabitleyen bir menü girişi ekler. Kendinden imzalı sertifikayla çalışmaya devam etmenin yolu budur ve `allowInsecure`'den güvenlik olarak da üstündür: MITM'e açık bırakmaz.
+
+**Files:**
+- Modify: `V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/compact/CompactMenuScreen.kt`
+- Modify: `V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/compact/CompactMainScreen.kt`
+- Modify: `V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/MainActivity.kt`
+
+**Interfaces:**
+- Consumes: `CompactMenuScreen` (Task 5), `CompactMainScreen` (Task 3); `CertificateFingerprintManager.fetchForManualFill(profile: ProfileItem): String?`; `MmkvManager.decodeServerConfig(guid): ProfileItem?` ve `MmkvManager.encodeServerConfig(guid, config): String`; `MainAction.RefreshGroups`; mevcut `MainActivity.restartV2Ray()`
+- Produces: `MainActivity.pinCertificateForSelectedProfile()`; `CompactMenuScreen`'e `onPinCertificate: () -> Unit` parametresi
+
+Bu task **`MainContract.kt`'ye dokunmaz** — yeni bir `MainAction` eklemek yerine geri çağırım aşağı geçirilir, böylece plan boyunca geçerli olan "MainContract davranışı değişmez" kısıtı korunur.
+
+Kullanılan kaynaklar (hepsi mevcut, doğrulandı): `R.string.pinned_ca256_action_fetch`, `R.string.toast_fetch_cert_sha256_success`, `R.string.toast_fetch_cert_sha256_failed`, `R.string.toast_config_file_invalid`, `R.string.title_file_chooser`, `R.drawable.ic_lock_24dp`.
+
+- [ ] **Step 1: `MainActivity`'ye sabitleme metodunu ekle**
+
+`MainActivity.kt` içine, `handleAction`'ın yanına:
+
+```kotlin
+    /**
+     * Fetches the selected profile's certificate SHA-256 and pins it.
+     *
+     * Xray-core removed `allowInsecure`; `pinnedPeerCertSha256` is the official
+     * replacement and the app already carries it end to end. This turns a profile that
+     * relied on skipping verification into one that verifies against a pinned cert,
+     * without making the user open the full editor on a 240dp screen.
+     */
+    private fun pinCertificateForSelectedProfile() {
+        val guid = mainViewModel.uiState.value.selectedGuid
+        if (guid.isNullOrEmpty()) {
+            toast(R.string.title_file_chooser)
+            return
+        }
+        val profile = MmkvManager.decodeServerConfig(guid)
+        if (profile == null) {
+            toastError(R.string.toast_config_file_invalid)
+            return
+        }
+        lifecycleScope.launch {
+            val sha256 = withContext(Dispatchers.IO) {
+                CertificateFingerprintManager.fetchForManualFill(profile)
+            }
+            if (sha256.isNullOrBlank()) {
+                toastError(R.string.toast_fetch_cert_sha256_failed)
+                return@launch
+            }
+            profile.pinnedCA256 = sha256
+            profile.insecure = false
+            MmkvManager.encodeServerConfig(guid, profile)
+            toastSuccess(R.string.toast_fetch_cert_sha256_success)
+            mainViewModel.onAction(MainAction.RefreshGroups)
+            if (mainViewModel.uiState.value.isRunning) restartV2Ray()
+        }
+    }
+```
+
+Eklenecek tek import (`MmkvManager`, `Dispatchers`, `withContext`, `lifecycleScope`, `toast`, `toastError`, `toastSuccess` zaten mevcut):
+
+```kotlin
+import com.v2ray.ang.handler.CertificateFingerprintManager
+```
+
+`profile.insecure = false` kasıtlıdır: sertifika sabitlendiğinde `CoreOutboundBuilder.kt:541` zaten `allowInsecure`'ü bastırıyor, bayrağı da temizlemek profili tutarlı bırakır.
+
+- [ ] **Step 2: Geri çağırımı `CompactMainScreen` üzerinden geçir**
+
+`CompactMainScreen` imzasına parametre eklenir:
+
+```kotlin
+fun CompactMainScreen(
+    mainViewModel: MainViewModel,
+    onAction: (MainAction) -> Unit,
+    onNavigate: (String) -> Unit,
+    onPinCertificate: () -> Unit,
+)
+```
+
+ve `Menu` rotasına aktarılır:
+
+```kotlin
+        CompactRoute.Menu -> CompactMenuScreen(
+            onAction = onAction,
+            onNavigate = onNavigate,
+            onPinCertificate = onPinCertificate,
+            onClose = { route = CompactRoute.Home },
+        )
+```
+
+`MainActivity.ScreenContent()` içindeki çağrı da güncellenir:
+
+```kotlin
+            CompactMainScreen(
+                mainViewModel = mainViewModel,
+                onAction = ::handleAction,
+                onNavigate = ::navigateTo,
+                onPinCertificate = ::pinCertificateForSelectedProfile,
+            )
+```
+
+- [ ] **Step 3: Menüye girişi ekle**
+
+`CompactMenuScreen` imzasına `onPinCertificate: () -> Unit` eklenir ve `entries` listesine, panodan içe aktarmanın hemen ardına yerleştirilir:
+
+```kotlin
+        CompactMenuEntry(R.drawable.ic_lock_24dp, R.string.pinned_ca256_action_fetch) {
+            onPinCertificate()
+            onClose()
+        },
+```
+
+- [ ] **Step 4: Derle ve testleri çalıştır**
+
+```bash
+cd V2rayNG && ./gradlew test && ./gradlew assemblePlaystoreDebug
+```
+Expected: BUILD SUCCESSFUL. `com.v2ray.ang.UtilsTest` içindeki `test_isIpAddress` ve `test_IsIpInCidr` **bu dalda zaten kırık** (Task 1'de doğrulandı, bu planla ilgisiz) — başka bir başarısızlık olmamalı.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/compact/CompactMenuScreen.kt \
+        V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/compact/CompactMainScreen.kt \
+        V2rayNG/app/src/main/java/com/v2ray/ang/ui/main/MainActivity.kt
+git commit -m "feat: pin the selected profile's certificate from the compact menu
+
+Xray-core removed allowInsecure and points at pinnedPeerCertSha256 instead.
+The app already supports it, but only through the full server editor, which is
+awkward on a 240dp screen. One menu entry now fetches the server's certificate
+SHA-256, pins it, clears the insecure flag and restarts if running."
+```
+
+---
+
+## Task 7: Cihazda uçtan uca doğrulama
 
 **Files:** yok — yalnızca doğrulama. Bulunan hatalar kendi commit'leriyle düzeltilir.
 
@@ -1627,6 +1763,9 @@ git push origin feat/compact-round-screen
 | allowInsecure regresyon testleri | Task 1, Step 1-4 |
 | `FORK.md` | Task 1, Step 7; Task 6, Step 8 |
 | Xray-core dış riski | Task 1, Step 7 (`FORK.md` içinde) |
-| Cihaz doğrulaması | Task 6 |
+| pcs akışı (spec sonrası eklendi) | Task 6 |
+| Cihaz doğrulaması | Task 7 |
+
+**Task 6 spec'te yoktu.** Araştırma sırasında Xray-core'un `allowInsecure`'ü çoktan kaldırdığı ve sert hata döndürdüğü ortaya çıktı; `pinnedPeerCertSha256` resmî ikame. Kullanıcı kararı: core yamalanacak (ayrı depoda, ayrı plan) **ve** pcs akışı kolaylaştırılacak. Task 6 ikincisidir.
 
 **Tip tutarlılığı:** `isCompactRoundScreen` / `chordHalfWidth` / `LocalCompactRound` / `currentIsCompactRound` / `circularStrictSafeArea` / `CompactRoute` / `managesOwnCompactSafeArea` adları tüm task'larda birebir aynı kullanıldı. `CompactMainScreen` üç parametreli (`mainViewModel`, `onAction`, `onNavigate`) olarak Task 3'te tanımlandı ve Task 3 Step 3'te aynı imzayla çağrıldı.
