@@ -12,6 +12,7 @@ import androidx.lifecycle.lifecycleScope
 import com.v2ray.ang.AngApplication
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
+import com.v2ray.ang.compose.LocalCompactRound
 import com.v2ray.ang.core.CoreServiceManager
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
@@ -28,6 +29,7 @@ import com.v2ray.ang.ui.backup.BackupActivity
 import com.v2ray.ang.ui.base.HelperBaseComponentActivity
 import com.v2ray.ang.ui.checkupdate.CheckUpdateActivity
 import com.v2ray.ang.ui.logcat.LogcatActivity
+import com.v2ray.ang.ui.main.compact.CompactMainScreen
 import com.v2ray.ang.ui.perappproxy.PerAppProxyActivity
 import com.v2ray.ang.ui.routing.RoutingSettingActivity
 import com.v2ray.ang.ui.server.ProfileEditorResult
@@ -96,31 +98,43 @@ class MainActivity : HelperBaseComponentActivity() {
         checkAndRequestPermission(PermissionType.POST_NOTIFICATIONS) {}
     }
 
+    override val managesOwnCompactSafeArea: Boolean = true
+
+    private fun handleAction(action: MainAction) {
+        when (action) {
+            MainAction.ToggleService -> handleFabAction()
+            MainAction.TestCurrentServer -> handleLayoutTestClick()
+            MainAction.ImportQRcode -> importQRcode()
+            MainAction.ImportClipboard -> importClipboard()
+            MainAction.ImportConfigLocal -> importConfigLocal()
+            is MainAction.ImportManually -> importManually(action.type)
+            MainAction.RestartService -> restartV2Ray()
+            MainAction.LocateSelectedServer -> mainViewModel.triggerLocateSelectedServer()
+            is MainAction.SelectServer -> setSelectServer(action.guid)
+            is MainAction.EditServer -> editServer(action.guid, action.profile)
+            is MainAction.ShareClipboard -> shareToClipboard(action.guid)
+            is MainAction.ShareFullContent -> shareFullContentAsync(action.guid)
+            else -> mainViewModel.onAction(action)
+        }
+    }
+
     @Composable
     override fun ScreenContent() {
-        MainScreen(
-            mainViewModel = mainViewModel,
-            onAction = { action ->
-                when (action) {
-                    MainAction.ToggleService -> handleFabAction()
-                    MainAction.TestCurrentServer -> handleLayoutTestClick()
-                    MainAction.ImportQRcode -> importQRcode()
-                    MainAction.ImportClipboard -> importClipboard()
-                    MainAction.ImportConfigLocal -> importConfigLocal()
-                    is MainAction.ImportManually -> importManually(action.type)
-                    MainAction.RestartService -> restartV2Ray()
-                    MainAction.LocateSelectedServer -> mainViewModel.triggerLocateSelectedServer()
-                    is MainAction.SelectServer -> setSelectServer(action.guid)
-                    is MainAction.EditServer -> editServer(action.guid, action.profile)
-                    is MainAction.ShareClipboard -> shareToClipboard(action.guid)
-                    is MainAction.ShareFullContent -> shareFullContentAsync(action.guid)
-                    else -> mainViewModel.onAction(action)
-                }
-            },
-            onNavigate = { route -> navigateTo(route) },
-            shareMethodEntries = resources.getStringArray(R.array.share_method).toList(),
-            shareMethodMoreEntries = resources.getStringArray(R.array.share_method_more).toList()
-        )
+        if (LocalCompactRound.current) {
+            CompactMainScreen(
+                mainViewModel = mainViewModel,
+                onAction = ::handleAction,
+                onNavigate = ::navigateTo,
+            )
+        } else {
+            MainScreen(
+                mainViewModel = mainViewModel,
+                onAction = ::handleAction,
+                onNavigate = { route -> navigateTo(route) },
+                shareMethodEntries = resources.getStringArray(R.array.share_method).toList(),
+                shareMethodMoreEntries = resources.getStringArray(R.array.share_method_more).toList()
+            )
+        }
     }
 
     private fun shareToClipboard(guid: String): Boolean =
