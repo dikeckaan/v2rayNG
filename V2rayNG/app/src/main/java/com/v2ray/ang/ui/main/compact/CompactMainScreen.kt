@@ -70,6 +70,7 @@ fun CompactMainScreen(
             onToggle = { onAction(MainAction.ToggleService) },
             onOpenProfiles = { route = CompactRoute.Profiles },
             onOpenMenu = { route = CompactRoute.Menu },
+            onTestCurrentServer = { onAction(MainAction.TestCurrentServer) },
         )
 
         CompactRoute.Menu -> CompactMenuScreen(
@@ -95,6 +96,7 @@ private fun CompactHome(
     onToggle: () -> Unit,
     onOpenProfiles: () -> Unit,
     onOpenMenu: () -> Unit,
+    onTestCurrentServer: () -> Unit,
 ) {
     Box(
         modifier = Modifier
@@ -105,10 +107,11 @@ private fun CompactHome(
         // Height budget. circularStrictSafeArea leaves 240 - 2*36 = 168dp for this
         // Column, and a Column measures children in order against what is left, so
         // anything over budget is silently taken out of the LAST child. Worst case
-        // (profile name wrapping to two lines) must stay at or under 168dp:
+        // (status wrapping to two lines, profile name wrapping to two lines) must
+        // stay at or under 168dp:
         //
-        //   status 16 + connect 76 + profile 36 (2 lines) + menu icon 28
-        //   + 3 gaps * 4 = 12                                      => 168dp
+        //   status 32 (2 lines) + connect 60 + profile 36 (2 lines) + menu icon 28
+        //   + 3 gaps * 4 = 12                                        => 168dp
         //
         // That is an exact fit, with no slack. Changing any size below without redoing
         // this sum will squash the menu icon. (The icon uses requiredSize so that if a
@@ -122,10 +125,12 @@ private fun CompactHome(
                 text = statusText,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onTestCurrentServer),
             )
 
             Surface(
@@ -141,7 +146,7 @@ private fun CompactHome(
                 } else {
                     MaterialTheme.colorScheme.onSurface
                 },
-                modifier = Modifier.size(76.dp),
+                modifier = Modifier.size(60.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
@@ -151,7 +156,7 @@ private fun CompactHome(
                             painterResource(R.drawable.ic_play_24dp)
                         },
                         contentDescription = null,
-                        modifier = Modifier.size(40.dp),
+                        modifier = Modifier.size(32.dp),
                     )
                 }
             }

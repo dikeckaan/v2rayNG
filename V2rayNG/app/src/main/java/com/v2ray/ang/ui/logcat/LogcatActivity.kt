@@ -6,13 +6,17 @@ import android.os.Bundle
 import androidx.activity.viewModels
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -24,6 +28,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +45,7 @@ import androidx.lifecycle.lifecycleScope
 import com.v2ray.ang.R
 import com.v2ray.ang.compose.AppTopBar
 import com.v2ray.ang.compose.ItemDivider
+import com.v2ray.ang.compose.LocalCompactRound
 import com.v2ray.ang.compose.verticalScrollbar
 import com.v2ray.ang.extension.toast
 import com.v2ray.ang.ui.base.BaseComponentActivity
@@ -135,6 +141,21 @@ fun LogcatScreen(
 
     val listState = rememberLazyListState()
 
+    if (LocalCompactRound.current) {
+        // Layer B screen: AppTheme already applied circularStrictSafeArea, so this
+        // content is handed a 168dp square directly. No AppTopBar, no search, no
+        // FAB — at 240dp those collapse into unlabeled icons and leave the log list
+        // no room. The list is the primary content; a compact icon row replaces the
+        // top bar actions that still matter (reload, copy).
+        CompactLogcatScreen(
+            logs = logs,
+            listState = listState,
+            onReload = { viewModel.loadLogcat() },
+            onCopy = { viewModel.copyLogcat() },
+        )
+        return
+    }
+
     Scaffold(
         contentWindowInsets = ScaffoldDefaults.contentWindowInsets,
         topBar = {
@@ -212,6 +233,63 @@ fun LogcatScreen(
                     LogcatItem(log = log, onLongClick = { Utils.setClipboard(context, log) })
                     ItemDivider()
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Compact replacement for the phone [LogcatScreen] Scaffold. The log list is the
+ * whole point of this screen, so it gets the whole 168dp square; a two-icon row
+ * (reload, copy) replaces the top-bar actions that still make sense at this size.
+ * Search and share are dropped — reachable through the phone UI if ever needed.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CompactLogcatScreen(
+    logs: List<String>,
+    listState: LazyListState,
+    onReload: () -> Unit,
+    onCopy: () -> Unit,
+) {
+    val context = LocalContext.current
+
+    // The phone screen only loads logs when the FAB is tapped, i.e. never
+    // automatically. Compact mode has no FAB and the whole point of this screen
+    // is to show what already happened, so trigger that same load once on entry.
+    LaunchedEffect(Unit) { onReload() }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScrollbar(listState),
+        ) {
+            itemsIndexed(items = logs, key = { index, _ -> index }) { _, log ->
+                LogcatItem(log = log, onLongClick = { Utils.setClipboard(context, log) })
+                ItemDivider()
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            IconButton(onClick = onReload) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_restore_24dp),
+                    contentDescription = stringResource(R.string.pull_down_to_refresh),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            IconButton(onClick = onCopy) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_copy),
+                    contentDescription = stringResource(R.string.logcat_copy),
+                    modifier = Modifier.size(20.dp),
+                )
             }
         }
     }
