@@ -83,11 +83,21 @@ These are real and unfixed. They are written down here so nobody has to rediscov
   (`compose/Dialog.kt`, reached from Settings) therefore render full-bleed at 240dp, with
   their corners and their right-aligned confirm/cancel buttons outside the visible circle.
   Fixing it means giving those two composables a compact-gated inset of their own.
-- **Rows clip mid-scroll.** Chord width is computed once, for the band a row occupies when
-  it is at rest. A row scrolling *past* that band is still drawn at the width it was given,
-  so its rounded ends are clipped by the panel while it is in transit. Transient and
-  self-correcting once scrolling stops; it is the price of not doing a dynamic per-row
-  layout pass.
+- **Rows near the top and bottom of a scrolling list have their ends clipped.** Chord width
+  is computed once, from the chord at the edge of the band bounded by the list's vertical
+  content padding. That is correct only while the content fits without scrolling: then the
+  first and last rows sit exactly on the boundary and are fully inside the circle.
+
+  Once a list is longer than the viewport — the compact menu already is, with five entries —
+  rows occupy the full height, and any row whose corner is further than the 120dp radius
+  from the centre is clipped by the panel. Measured on the real MU5358: a 154dp-wide row is
+  fully visible only for `|y − 120| ≤ 92`, so a row centred at y ≈ 218 has its corners about
+  125dp out and loses its rounded ends. The label itself, being inset 12dp and left-aligned,
+  stays readable.
+
+  This is not transient and it is not limited to scrolling — it is the standing cost of
+  computing the chord once instead of doing a dynamic per-row layout pass. Fixing it
+  properly means measuring each row against its own vertical position.
 - **The compact UI is append-only.** It can import, select, connect and pin a certificate.
   It exposes no path to delete or edit a profile — for that, use the phone UI on a normal
   screen, or clear data.
