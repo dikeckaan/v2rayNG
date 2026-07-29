@@ -3,18 +3,19 @@ package com.v2ray.ang.ui
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.compose.runtime.Composable
-import androidx.lifecycle.lifecycleScope
+import com.v2ray.ang.AngApplication
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
 import com.v2ray.ang.handler.AngConfigManager
 import com.v2ray.ang.ui.base.BaseComponentActivity
 import com.v2ray.ang.ui.main.MainActivity
 import com.v2ray.ang.util.LogUtil
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.net.URLDecoder
 
 class UrlSchemeActivity : BaseComponentActivity() {
@@ -76,39 +77,47 @@ class UrlSchemeActivity : BaseComponentActivity() {
         }
         LogUtil.i(AppConfig.TAG, decodedUrl)
 
-        // Navigation happens in the `finally` block, not here: starting MainActivity and
-        // finishing straight away used to cancel this coroutine's result handling, so a
-        // deep-link import completed silently. This is one of only two import routes in
-        // compact round-screen mode, so it has to confirm what it did.
-        lifecycleScope.launch {
+        // MainActivity is launched and this activity finishes immediately below, not after
+        // the import completes: this activity has no UI of its own, so keeping it alive
+        // until the import returns leaves the user staring at a blank window for as long as
+        // the import takes (up to 30s per configured subscription when the deep link is a
+        // subscription URL). The import instead runs on an application-scoped coroutine that
+        // outlives this activity; its result is still reported via a platform Toast (see
+        // `report`), which is why it's safe to finish before the import completes.
+        AngApplication.applicationScope.launch {
             try {
-                val (count, countSub) = withContext(Dispatchers.IO) {
-                    // append = true: importing one profile must not wipe the default group.
-                    // Upstream passes false here, which calls removeServerViaSubid("") first.
-                    AngConfigManager.importBatchConfig(decodedUrl, "", true)
-                }
+                // append = true: importing one profile must not wipe the default group.
+                // Upstream passes false here, which calls removeServerViaSubid("") first.
+                val (count, countSub) = AngConfigManager.importBatchConfig(decodedUrl, "", true)
                 if (count + countSub > 0) {
                     report(R.string.import_subscription_success)
                 } else {
                     report(R.string.import_subscription_failure)
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (e: Exception) {
                 LogUtil.e(AppConfig.TAG, "Deep-link import failed", e)
                 report(R.string.import_subscription_failure)
-            } finally {
-                openMainAndFinish()
             }
         }
+        openMainAndFinish()
     }
 
     /**
-     * Deliberately a platform [Toast] rather than the app snackbar: this activity has no
-     * UI of its own and finishes as soon as the import reports, so a snackbar hosted in
-     * its window would be torn down before it could be read. A platform toast outlives
-     * the activity and stays visible over [MainActivity].
+     * Deliberately a platform [Toast] rather than the app snackbar: this activity finishes
+     * immediately, well before the import (running on [AngApplication.applicationScope])
+     * reports its result, so a snackbar hosted in its window would already be torn down. A
+     * platform toast outlives the activity and stays visible over [MainActivity]. Uses
+     * [applicationContext] since this activity is typically already finished/destroyed by
+     * the time the import completes, and posts to the main thread since the import (and
+     * therefore this call) runs on [AngApplication.applicationScope], which is backed by
+     * `Dispatchers.IO` and has no `Looper` for `Toast` to attach to.
      */
     private fun report(message: Int) {
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show()
+        }
     }
 
     /** Always reached exactly once, on every path including errors and empty URLs. */

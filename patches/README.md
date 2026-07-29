@@ -38,7 +38,7 @@ return nil // r.PinnedPeerCertSha256==nil && r.verifyPeerCertByName==nil
 
 So when neither a pinned certificate nor a name check is configured, the callback accepts
 any certificate. Only the field feeding `tls.Config.InsecureSkipVerify` was cut. Restoring
-that field and wiring it back is enough — four files, 22 added lines:
+that field and wiring it back is enough — four files, 23 added lines:
 
 | File | Change |
 |---|---|

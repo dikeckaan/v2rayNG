@@ -8,10 +8,20 @@ import com.tencent.mmkv.MMKV
 import com.v2ray.ang.AppConfig.ANG_PACKAGE
 import com.v2ray.ang.compose.ThemeManager
 import com.v2ray.ang.handler.SettingsManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 class AngApplication : Application() {
     companion object {
         lateinit var application: AngApplication
+
+        /**
+         * Application-scoped coroutine scope for work that must outlive a single activity,
+         * e.g. deep-link imports kicked off by [com.v2ray.ang.ui.UrlSchemeActivity] that
+         * should keep running (and still show a result toast) after that activity finishes.
+         */
+        val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 
     /**
