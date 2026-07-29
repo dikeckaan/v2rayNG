@@ -75,6 +75,55 @@ Beware: `vprotogen` rewrites **every** `.pb.go` in the tree, because the protoc 
 stamp changes. Keep only `transport/internet/tls/config.pb.go` and `git checkout --` the
 rest, or the diff balloons to ~87 files of pure noise.
 
+### Building the patched AAR locally — no forks, no CI
+
+This was done and verified end to end. It needs Go, the Android SDK, an NDK and `gomobile`;
+it does **not** need a fork of either repository, because Go's `replace` directive can point
+at a local checkout.
+
+```sh
+# 1. A patched Xray-core at the version AndroidLibXrayLite expects
+git clone https://github.com/XTLS/Xray-core.git /tmp/xray-patched
+cd /tmp/xray-patched && git checkout v26.7.11
+git apply /path/to/patches/0001-restore-allowInsecure.patch
+go build ./...            # must exit 0
+
+# 2. Tooling
+sdkmanager --install "ndk;29.0.14206865"      # the version AndroidLibXrayLite's CI uses
+go install golang.org/x/mobile/cmd/gomobile@latest
+go install golang.org/x/mobile/cmd/gobind@latest
+
+# 3. Point AndroidLibXrayLite at the patched core
+cd <repo>/AndroidLibXrayLite
+printf '\nreplace github.com/xtls/xray-core => /tmp/xray-patched\n' >> go.mod
+
+# 4. Build the AAR (~2 min; produces all four ABIs)
+mkdir -p assets data && bash gen_assets.sh download && cp data/*.dat assets/
+export ANDROID_HOME=~/Library/Android/sdk
+export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865
+export PATH=$PATH:~/go/bin
+gomobile init && go mod tidy
+gomobile bind -androidapi 24 -trimpath -ldflags='-s -w -buildid= -checklinkname=0' ./
+
+# 5. Ship it into the app and build
+cp libv2ray.aar ../V2rayNG/app/libs/libv2ray.aar
+cd ../V2rayNG && ./gradlew assemblePlaystoreDebug
+```
+
+**Verify the AAR really is patched** rather than trusting the build. The decisive marker is
+the restored protobuf field, which stock v26.7.11 does not have anywhere:
+
+```sh
+unzip -o libv2ray.aar -d /tmp/aarx
+strings -a /tmp/aarx/jni/arm64-v8a/libgojni.so | grep allow_insecure
+# expect:
+# allow_insecure
+# AllowInsecure...protobuf:"varint,1,opt,name=allow_insecure,json=allowInsecure,proto3" ...
+```
+
+Note the `replace` line is a local absolute path, so it must not be committed to the
+submodule. Re-add it after any submodule reset.
+
 ### Shipping it to the app
 
 The app consumes the core as a prebuilt `libv2ray.aar` (see
