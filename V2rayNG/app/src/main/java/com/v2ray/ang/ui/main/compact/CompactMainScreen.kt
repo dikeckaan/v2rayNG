@@ -164,6 +164,10 @@ private fun CompactHome(
             Text(
                 text = profileName ?: stringResource(R.string.title_file_chooser),
                 style = MaterialTheme.typography.bodySmall,
+                // Explicit colour is required, not cosmetic: this Column sits in a plain
+                // Box, not a Surface, so LocalContentColor falls back to Material3's
+                // default black — invisible against the dark theme's dark background.
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
